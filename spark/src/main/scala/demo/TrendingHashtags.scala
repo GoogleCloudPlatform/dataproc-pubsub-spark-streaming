@@ -49,6 +49,7 @@ object TrendingHashtags {
 
     val Seq(projectID, windowLength, slidingInterval, totalRunningTime) = args.toSeq
 
+    // [START stream_setup]
     val inputSubscription = "tweets-subscription"  // Cloud Pub/Sub subscription for incoming tweets
 
     // Create Spark context
@@ -60,7 +61,9 @@ object TrendingHashtags {
       ssc, projectID, None, inputSubscription,
       SparkGCPCredentials.builder.build(), StorageLevel.MEMORY_AND_DISK_SER_2)
     val windowedStream = pubsubStream.window(Seconds(windowLength.toInt), Seconds(slidingInterval.toInt))
+    // [END stream_setup]
 
+    // [START data_processing]
     // Extract and count hashtags
     val hashtags = (
         windowedStream
@@ -79,6 +82,7 @@ object TrendingHashtags {
         .map((_, 1))                 // Create word count pairs
         .reduceByKey(_ + _)          // Count occurrences
     )
+    // [END data_processing]
 
     // Sort hashtags by descending number of occurrences
     val sortedHashtags = hashtags.transform(rdd => rdd.sortBy(_._2, ascending=false))
@@ -88,6 +92,7 @@ object TrendingHashtags {
     // Publish the hashtags with highest occurrences to Cloud Pub/Sub
     sortedHashtags.foreachRDD { rdd =>
 
+        // [START datastore_save]
         val datetime = Timestamp.now()
         val hashtags = rdd.take(10).map( record =>
             Map("name" -> record._1, "occurrences" -> record._2)
@@ -111,6 +116,7 @@ object TrendingHashtags {
             .set("hashtags", listValue.build())
             .build()
         datastore.add(entity)
+        // [END datastore_save]
 
         // Display some info in the job's logs
         println("\n-------------------------")
