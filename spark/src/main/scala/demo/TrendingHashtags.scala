@@ -15,23 +15,18 @@ package demo
 
 import java.nio.charset.StandardCharsets
 
-import org.apache.spark.storage.StorageLevel
-import org.apache.spark.streaming.dstream.ReceiverInputDStream
-import org.apache.spark.streaming.pubsub.PubsubUtils
-import org.apache.spark.streaming.pubsub.SparkGCPCredentials
-import org.apache.spark.streaming.pubsub.SparkPubsubMessage
-import org.apache.spark.streaming.Seconds
-import org.apache.spark.streaming.StreamingContext
+import com.google.cloud.datastore._
+import demo.DataStoreConverter.saveRDDtoDataStore
+import demo.HashTagsStreaming.processTrendingHashTags
 import org.apache.spark.SparkConf
-
-import com.google.cloud.Timestamp
-import com.google.cloud.datastore.Datastore;
-import com.google.cloud.datastore.DatastoreOptions;
-import com.google.cloud.datastore.FullEntity
-import com.google.cloud.datastore.ListValue;
+import org.apache.spark.storage.StorageLevel
+import org.apache.spark.streaming.dstream.DStream
+import org.apache.spark.streaming.pubsub.{PubsubUtils, SparkGCPCredentials}
+import org.apache.spark.streaming.{Seconds, StreamingContext}
 
 
 object TrendingHashtags {
+
   def main(args: Array[String]): Unit = {
     if (args.length != 4) {
       System.err.println(
@@ -50,98 +45,42 @@ object TrendingHashtags {
     val Seq(projectID, windowLength, slidingInterval, totalRunningTime) = args.toSeq
 
     // [START stream_setup]
-    val inputSubscription = "tweets-subscription"  // Cloud Pub/Sub subscription for incoming tweets
+    val inputSubscription = "tweets-subscription" // Cloud Pub/Sub subscription for incoming tweets
 
     // Create Spark context
     val sparkConf = new SparkConf().setAppName("TrendingHashtags")
     val ssc = new StreamingContext(sparkConf, Seconds(slidingInterval.toInt))
 
     // Create streams
-    val pubsubStream: ReceiverInputDStream[SparkPubsubMessage] = PubsubUtils.createStream(
-      ssc, projectID, None, inputSubscription,
-      SparkGCPCredentials.builder.build(), StorageLevel.MEMORY_AND_DISK_SER_2)
-    val windowedStream = pubsubStream.window(Seconds(windowLength.toInt), Seconds(slidingInterval.toInt))
+    val messagesStream: DStream[String] = PubsubUtils
+      .createStream(
+        ssc,
+        projectID,
+        None,
+        inputSubscription,
+        SparkGCPCredentials.builder.build(), StorageLevel.MEMORY_AND_DISK_SER_2)
+      .map(message => new String(message.getData(), StandardCharsets.UTF_8))
     // [END stream_setup]
 
-    // [START data_processing]
-    // Extract and count hashtags
-    val hashtags = (
-        windowedStream
-        .map(message =>              // Extract the Pub/Sub message data
-            new String(
-                message.getData(),
-                StandardCharsets.UTF_8
-            )
-        )
-        .flatMap(_.split("\\s+"))    // Split on any white character
-        .filter(_.startsWith("#"))   // Keep only the hashtags
-        .map(_.replaceAll(
-            "[,.!?:;]", "")          // Remove punctuation
-            .toLowerCase)            // Force to lowercase
-        .filter(!_.isEmpty)          // Remove any non-words
-        .map((_, 1))                 // Create word count pairs
-        .reduceByKey(_ + _)          // Count occurrences
+    val datastore: Datastore = DatastoreOptions.getDefaultInstance().getService()
+
+    //process the stream
+    processTrendingHashTags(messagesStream,
+      windowLength.toInt,
+      slidingInterval.toInt,
+      10,
+      //decoupled handler that saves each separate result for processed to datastore
+      saveRDDtoDataStore(_, windowLength.toInt, datastore)
     )
-    // [END data_processing]
-
-    // Sort hashtags by descending number of occurrences
-    val sortedHashtags = hashtags.transform(rdd => rdd.sortBy(_._2, ascending=false))
-
-    val datastore = DatastoreOptions.getDefaultInstance().getService()
-
-    // Publish the hashtags with highest occurrences to Cloud Pub/Sub
-    sortedHashtags.foreachRDD { rdd =>
-
-        // [START datastore_save]
-        val datetime = Timestamp.now()
-        val hashtags = rdd.take(10).map( record =>
-            Map("name" -> record._1, "occurrences" -> record._2)
-        )
-
-        // Create the Cloud Datastore embedded entity to host the hashtags
-        val listValue = ListValue.newBuilder()
-        val hashtagKeyFactory = datastore.newKeyFactory().setKind("Hashtag")
-        for (hashtag <- hashtags) {
-            val entity = FullEntity.newBuilder(hashtagKeyFactory.newKey())
-                .set("name", hashtag("name").asInstanceOf[String])
-                .set("occurrences", hashtag("occurrences").asInstanceOf[Int])
-                .build()
-            listValue.addValue(entity)
-        }
-
-        // Save the values to Cloud Datastore
-        val keyFactory = datastore.newKeyFactory().setKind("TrendingHashtags")
-        val entity = FullEntity.newBuilder(keyFactory.newKey())
-            .set("datetime", datetime)
-            .set("hashtags", listValue.build())
-            .build()
-        datastore.add(entity)
-        // [END datastore_save]
-
-        // Display some info in the job's logs
-        println("\n-------------------------")
-        println(s"Window ending ${datetime} for the past ${windowLength} seconds\n")
-        if (hashtags.length == 0) {
-            println ("No trending hashtags in this window.")
-        }
-        else {
-            println ("Trending hashtags in this window:")
-            for (hashtag <- hashtags) {
-                val name = hashtag("name")
-                val occurrences = hashtag("occurrences")
-                println(s"${name}, ${occurrences}")
-            }
-        }
-    }
 
     // Start streaming until we receive an explicit termination
     ssc.start()
 
     if (totalRunningTime.toInt == 0) {
-        ssc.awaitTermination()
+      ssc.awaitTermination()
     }
     else {
-        ssc.awaitTerminationOrTimeout(1000 * 60 * totalRunningTime.toInt)
+      ssc.awaitTerminationOrTimeout(1000 * 60 * totalRunningTime.toInt)
     }
   }
 
