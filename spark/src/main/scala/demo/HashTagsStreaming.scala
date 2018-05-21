@@ -21,6 +21,7 @@ import org.apache.spark.streaming.dstream.DStream
 object HashTagsStreaming {
   case class Popularity(tag: String, amount: Int)
 
+  // [START extract]
   private[demo] def extractTrendingTags(input: RDD[String]): RDD[Popularity] =
     input.flatMap(_.split("\\s+")) // Split on any white character
       .filter(_.startsWith("#")) // Keep only the hashtags
@@ -34,6 +35,7 @@ object HashTagsStreaming {
       .map(r => Popularity(r._1, r._2))
       // Sort hashtags by descending number of occurrences
       .sortBy(r => (-r.amount, r.tag), ascending = true)
+  // [END extract]
 
   def processTrendingHashTags(input: DStream[String],
                               windowLength: Int,
