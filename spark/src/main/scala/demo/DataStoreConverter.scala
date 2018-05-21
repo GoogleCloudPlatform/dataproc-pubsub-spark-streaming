@@ -26,6 +26,7 @@ object DataStoreConverter {
       .set("occurrences", record.amount)
       .build()
 
+  // [START convert_identity] 
   private[demo] def convertToEntity(hashtags: Array[Popularity],
                                     keyFactory: String => KeyFactory): FullEntity[IncompleteKey] = {
     val hashtagKeyFactory: KeyFactory = keyFactory("Hashtag")
@@ -41,6 +42,7 @@ object DataStoreConverter {
       .set("hashtags", listValue.build())
       .build()
   }
+  // [START convert_identity]
 
   def saveRDDtoDataStore(tags: Array[Popularity],
                          windowLength: Int,
