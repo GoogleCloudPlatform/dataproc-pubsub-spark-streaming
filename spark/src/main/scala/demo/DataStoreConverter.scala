@@ -42,7 +42,7 @@ object DataStoreConverter {
       .set("hashtags", listValue.build())
       .build()
   }
-  // [START convert_identity]
+  // [END convert_identity]
 
   def saveRDDtoDataStore(tags: Array[Popularity],
                          windowLength: Int,
