@@ -31,12 +31,12 @@ object TrendingHashtags {
     : StreamingContext = {
 
     // [START stream_setup]
-	val sparkConf = new SparkConf().setAppName("TrendingHashtags")
-	val ssc = new StreamingContext(sparkConf, Seconds(slidingInterval.toInt))
-	
-	// Set the checkpoint directory
-	val yarnTags = sparkConf.get("spark.yarn.tags")
-	val jobId = yarnTags.split(",").filter(_.startsWith("dataproc_job")).head
+    val sparkConf = new SparkConf().setAppName("TrendingHashtags")
+    val ssc = new StreamingContext(sparkConf, Seconds(slidingInterval.toInt))
+
+    // Set the checkpoint directory
+    val yarnTags = sparkConf.get("spark.yarn.tags")
+    val jobId = yarnTags.split(",").filter(_.startsWith("dataproc_job")).head
     ssc.checkpoint(checkpointDirectory + '/' + jobId)
     
     // Create stream
