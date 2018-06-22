@@ -45,8 +45,8 @@ object DataStoreConverter {
   // [END convert_identity]
 
   def saveRDDtoDataStore(tags: Array[Popularity],
-                         windowLength: Int,
-                         datastore: Datastore): Unit = {
+                         windowLength: Int): Unit = {
+    val datastore: Datastore = DatastoreOptions.getDefaultInstance().getService()
     val keyFactoryBuilder = (s: String) => datastore.newKeyFactory().setKind(s)
 
     val entity: FullEntity[IncompleteKey] = convertToEntity(tags, keyFactoryBuilder)
