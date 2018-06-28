@@ -4,7 +4,9 @@ in near real-time. The system you build in this scenario generates thousands of 
 hashtags over a sliding window, saves results in [Cloud Datastore](https://cloud.google.com/datastore/), and displays
 the results on a web page.
 
-Please refer to the related article for all the steps to follow in this tutorial: [INSERT LINK WHEN PUBLISHED]
+Please refer to the related article for all the steps to follow in this tutorial:
+
+https://cloud.google.com/solutions/using-apache-spark-dstreams-with-dataproc-and-pubsub
 
 Contents of this repository:
 
