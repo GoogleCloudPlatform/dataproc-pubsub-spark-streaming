@@ -16,7 +16,7 @@ package demo
 import java.nio.charset.StandardCharsets
 
 import com.google.cloud.datastore._
-import demo.DataStoreConverter.saveRDDtoDataStore
+import demo.DataStoreConverter.saveTagsToDataStore
 import demo.HashTagsStreaming.processTrendingHashTags
 import org.apache.spark.SparkConf
 import org.apache.spark.storage.StorageLevel
@@ -56,7 +56,7 @@ object TrendingHashtags {
       slidingInterval.toInt,
       10,
       //decoupled handler that saves each separate result for processed to datastore
-      saveRDDtoDataStore(_, windowLength.toInt)
+      saveTagsToDataStore(_, windowLength.toInt)
     )
     
 	ssc

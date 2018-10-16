@@ -44,7 +44,7 @@ object DataStoreConverter {
   }
   // [END convert_identity]
 
-  def saveRDDtoDataStore(tags: Array[Popularity],
+  def saveTagsToDataStore(tags: Array[Popularity],
                          windowLength: Int): Unit = {
     val datastore: Datastore = DatastoreOptions.getDefaultInstance().getService()
     val keyFactoryBuilder = (s: String) => datastore.newKeyFactory().setKind(s)
